@@ -17,8 +17,8 @@ if not SAMPLES:
 
 rule all:
     input:
-        expand(os.path.join(config["output_dir"], "reports/{sample}_final_report.txt"), sample=SAMPLES),
-        expand(os.path.join(config["output_dir"], "metrics/{sample}_quality_metrics.txt"), sample=SAMPLES)
+        reports = expand(os.path.join(config["output_dir"], "reports/{sample}_final_report.txt"), sample=SAMPLES),
+        metrics = expand(os.path.join(config["output_dir"], "metrics/{sample}_quality_metrics.txt"), sample=SAMPLES)
 
 rule fastqc_raw:
     input:
