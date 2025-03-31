@@ -1,0 +1,6 @@
+reference: "/home/heska/Documents/Ruslan/test2/BWA_reference/GRCh38.primary_assembly.genome.cleaned.fa"
+input_dir: "/home/heska/Documents/Ruslan/test2/test_task-1/"
+output_dir: "/home/heska/Documents/Ruslan/test2/results"
+threads: 8
+picard_jar: "/home/heska/anaconda3/share/picard-3.3.0-0/picard.jar"
+reference_regions: "/home/heska/Documents/Ruslan/test2/BWA_reference/exons.bed"
