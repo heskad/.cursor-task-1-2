@@ -7,8 +7,6 @@ import zipfile
 import numpy as np
 import yaml
 
-# ... existing code ...
-
 def read_mito_stats(mito_stats_path):
     """Читает статистики митохондриального генома."""
     stats = {}
@@ -138,4 +136,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    main() 
