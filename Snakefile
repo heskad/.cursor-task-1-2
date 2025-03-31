@@ -15,18 +15,10 @@ SAMPLES = glob_wildcards(os.path.join(config["input_dir"], "{sample}/{sample}_re
 if not SAMPLES:
     raise ValueError("No samples found in input directory!")
 
-rule all_reports:
-    input:
-        expand(os.path.join(config["output_dir"], "reports/{sample}_final_report.txt"), sample=SAMPLES)
-
-rule all_metrics:
-    input:
-        expand(os.path.join(config["output_dir"], "metrics/{sample}_quality_metrics.txt"), sample=SAMPLES)
-
 rule all:
     input:
-        rules.all_reports.input,
-        rules.all_metrics.input
+        reports = [os.path.join(config["output_dir"], f"reports/{sample}_final_report.txt") for sample in SAMPLES],
+        metrics = [os.path.join(config["output_dir"], f"metrics/{sample}_quality_metrics.txt") for sample in SAMPLES]
 
 rule fastqc_raw:
     input:
