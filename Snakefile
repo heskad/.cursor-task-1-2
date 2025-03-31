@@ -11,7 +11,10 @@ for param in required_params:
         raise ValueError(f"Required parameter '{param}' missing in config.yaml")
 
 # Автоматическое определение образцов
-SAMPLES = glob_wildcards(os.path.join(config["input_dir"], "{sample}/{sample}_read1.fastq.gz")).sample
+SAMPLES = [f for f in os.listdir(config["input_dir"]) 
+          if os.path.isdir(os.path.join(config["input_dir"], f)) and 
+          os.path.exists(os.path.join(config["input_dir"], f, f"{f}_read1.fastq.gz"))]
+
 if not SAMPLES:
     raise ValueError("No samples found in input directory!")
 
