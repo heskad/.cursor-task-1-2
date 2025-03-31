@@ -1,0 +1,16 @@
+name: ngs_task-1
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - snakemake=8.11
+  - fastqc
+  - cutadapt
+  - bwa
+  - samtools
+  - bedtools
+  - picard
+  - multiqc
+  - pysam
+  - pandas
