@@ -1,9 +1,11 @@
 import os
+import pandas as pd
 
 configfile: "config.yaml"
 
 # Проверка обязательных параметров конфига
-required_params = ["reference", "input_dir", "output_dir", "threads", "picard_jar", "reference_regions"]
+required_params = ["reference", "input_dir", "output_dir", "threads", "picard_jar", 
+                  "reference_regions", "annotation", "windows"]
 for param in required_params:
     if param not in config:
         raise ValueError(f"Required parameter '{param}' missing in config.yaml")
@@ -15,7 +17,8 @@ if not SAMPLES:
 
 rule all:
     input:
-        expand(os.path.join(config["output_dir"], "reports/{sample}_final_report.txt"), sample=SAMPLES)
+        expand(os.path.join(config["output_dir"], "reports/{sample}_final_report.txt"), sample=SAMPLES),
+        expand(os.path.join(config["output_dir"], "metrics/{sample}_quality_metrics.txt"), sample=SAMPLES)
 
 rule fastqc_raw:
     input:
@@ -97,3 +100,55 @@ rule analyze_sample:
         os.path.join(config['output_dir'], "logs/{sample}_analyze.log")
     shell:
         "python scripts/generate_report.py {input.bam} {input.metrics} {output.report} 2>> {log}"
+
+rule analyze_mitochondrial:
+    input:
+        bam = rules.mark_duplicates.output.bam,
+        annotation = config["annotation"]
+    output:
+        mito_stats = os.path.join(config['output_dir'], "metrics/{sample}_mito_stats.txt")
+    shell:
+        """samtools view -h {input.bam} MT | \
+        samtools stats | grep ^SN | cut -f 2- > {output.mito_stats}"""
+
+rule analyze_exome:
+    input:
+        bam = rules.mark_duplicates.output.bam,
+        annotation = config["annotation"]
+    output:
+        exome_stats = os.path.join(config['output_dir'], "metrics/{sample}_exome_stats.txt")
+    shell:
+        """bedtools coverage -a {input.annotation} -b {input.bam} | \
+        grep exon > {output.exome_stats}"""
+
+rule analyze_onco_panel:
+    input:
+        bam = rules.mark_duplicates.output.bam,
+        annotation = config["annotation"]
+    output:
+        onco_stats = os.path.join(config['output_dir'], "metrics/{sample}_onco_stats.txt")
+    shell:
+        """bedtools coverage -a {input.annotation} -b {input.bam} | \
+        grep -E 'BRCA1|BRCA2|TP53|EGFR|KRAS' > {output.onco_stats}"""
+
+rule analyze_metagenome:
+    input:
+        bam = rules.mark_duplicates.output.bam,
+        windows = config["windows"]
+    output:
+        meta_stats = os.path.join(config['output_dir'], "metrics/{sample}_meta_stats.txt")
+    shell:
+        """bedtools coverage -a {input.windows} -b {input.bam} > {output.meta_stats}"""
+
+rule collect_quality_metrics:
+    input:
+        bam = rules.mark_duplicates.output.bam,
+        metrics = rules.mark_duplicates.output.metrics,
+        mito_stats = rules.analyze_mitochondrial.output.mito_stats,
+        exome_stats = rules.analyze_exome.output.exome_stats,
+        onco_stats = rules.analyze_onco_panel.output.onco_stats,
+        meta_stats = rules.analyze_metagenome.output.meta_stats
+    output:
+        quality_metrics = os.path.join(config['output_dir'], "metrics/{sample}_quality_metrics.txt")
+    script:
+        "scripts/collect_metrics.py"
