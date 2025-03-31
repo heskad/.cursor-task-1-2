@@ -1,0 +1,99 @@
+import os
+
+configfile: "config.yaml"
+
+# Проверка обязательных параметров конфига
+required_params = ["reference", "input_dir", "output_dir", "threads", "picard_jar", "reference_regions"]
+for param in required_params:
+    if param not in config:
+        raise ValueError(f"Required parameter '{param}' missing in config.yaml")
+
+# Автоматическое определение образцов
+SAMPLES = glob_wildcards(os.path.join(config["input_dir"], "{sample}/{sample}_read1.fastq.gz")).sample
+if not SAMPLES:
+    raise ValueError("No samples found in input directory!")
+
+rule all:
+    input:
+        expand(os.path.join(config["output_dir"], "reports/{sample}_final_report.txt"), sample=SAMPLES)
+
+rule fastqc_raw:
+    input:
+        r1 = os.path.join(config['input_dir'], "{sample}/{sample}_read1.fastq.gz"),
+        r2 = os.path.join(config['input_dir'], "{sample}/{sample}_read2.fastq.gz")
+    output:
+        directory(os.path.join(config['output_dir'], "metrics/raw_fastqc/{sample}"))
+    threads: config['threads']
+    shell:
+        "fastqc {input.r1} {input.r2} -o {output} --quiet"
+
+rule bwa_alignment:
+    input:
+        r1 = rules.fastqc_raw.input.r1,
+        r2 = rules.fastqc_raw.input.r2
+    output:
+        temp(os.path.join(config['output_dir'], "aligned/{sample}.sam"))
+    threads: config['threads']
+    log: os.path.join(config['output_dir'], "logs/{sample}_bwa.log")
+    shell:
+        """bwa mem -t {threads} \
+        -R '@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}\\tLB:lib1\\tPL:ILLUMINA' \
+        {config[reference]} \
+        {input.r1} {input.r2} > {output} 2> {log}"""
+
+rule process_bam:
+    input:
+        rules.bwa_alignment.output
+    output:
+        bam = os.path.join(config['output_dir'], "aligned/{sample}.sorted.bam"),
+        bai = os.path.join(config['output_dir'], "aligned/{sample}.sorted.bam.bai")
+    threads: config['threads']
+    log: os.path.join(config['output_dir'], "logs/{sample}_samtools.log")
+    shell:
+        """samtools view -@ {threads} -Sb {input} 2>> {log} | \
+        samtools sort -@ {threads} -o {output.bam} 2>> {log}
+        samtools index {output.bam} 2>> {log}"""
+
+rule mark_duplicates:
+    input:
+        rules.process_bam.output.bam
+    output:
+        bam = os.path.join(config['output_dir'], "aligned/{sample}.dedup.bam"),
+        metrics = os.path.join(config['output_dir'], "metrics/{sample}.dups_metrics.txt")
+    threads: config['threads']
+    shell:
+        """java -jar {config[picard_jar]} MarkDuplicates \
+        INPUT={input} \
+        OUTPUT={output.bam} \
+        METRICS_FILE={output.metrics} \
+        CREATE_INDEX=true \
+        VALIDATION_STRINGENCY=LENIENT"""
+
+rule coverage_analysis:
+    input:
+        bam = rules.mark_duplicates.output.bam,
+        reference_bed = config["reference_regions"]
+    output:
+        coverage = os.path.join(config['output_dir'], "coverage/{sample}_coverage.txt")
+    shell:
+        "bedtools coverage -a {input.reference_bed} -b {input.bam} > {output.coverage}"
+
+rule classify_sample:
+    input:
+        coverage = rules.coverage_analysis.output.coverage
+    output:
+        flag = os.path.join(config['output_dir'], "reports/{sample}_type.txt")
+    script:
+        "scripts/classify_sample.py"
+
+rule analyze_sample:
+    input:
+        bam = rules.mark_duplicates.output.bam,
+        metrics = rules.mark_duplicates.output.metrics,
+        type_flag = rules.classify_sample.output.flag
+    output:
+        report = os.path.join(config['output_dir'], "reports/{sample}_final_report.txt")
+    log:
+        os.path.join(config['output_dir'], "logs/{sample}_analyze.log")
+    shell:
+        "python scripts/generate_report.py {input.bam} {input.metrics} {output.report} 2>> {log}"
