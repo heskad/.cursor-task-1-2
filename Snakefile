@@ -18,10 +18,14 @@ SAMPLES = [f for f in os.listdir(config["input_dir"])
 if not SAMPLES:
     raise ValueError("No samples found in input directory!")
 
+# Определяем пути для отчетов и метрик
+REPORT_PATHS = [os.path.join(config["output_dir"], f"reports/{sample}_final_report.txt") for sample in SAMPLES]
+METRIC_PATHS = [os.path.join(config["output_dir"], f"metrics/{sample}_quality_metrics.txt") for sample in SAMPLES]
+
 rule all:
     input:
-        expand(os.path.join(config["output_dir"], "reports/{sample}_final_report.txt"), sample=SAMPLES),
-        expand(os.path.join(config["output_dir"], "metrics/{sample}_quality_metrics.txt"), sample=SAMPLES)
+        REPORT_PATHS,
+        METRIC_PATHS
 
 rule fastqc_raw:
     input:
