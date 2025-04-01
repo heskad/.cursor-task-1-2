@@ -154,4 +154,4 @@ rule collect_quality_metrics:
     output:
         quality_metrics = os.path.join(config['output_dir'], "metrics/{sample}_quality_metrics.txt")
     shell:
-        "python scripts/collect_metrics.py {input.bam} {input.metrics} {input.mito_stats} {input.exome_stats} {input.onco_stats} {input.meta_stats} {params.output_file}"
+        "python scripts/collect_metrics.py {input.bam} {input.metrics} {input.mito_stats} {input.exome_stats} {input.onco_stats} {input.meta_stats} {output.quality_metrics}"
