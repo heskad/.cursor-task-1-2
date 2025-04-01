@@ -36,12 +36,9 @@ def classify_sample(coverage_file):
         return "unknown"
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: classify_sample.py <coverage_file> <output_file>")
-        sys.exit(1)
-    
-    coverage_file = sys.argv[1]
-    output_file = sys.argv[2]
+    # Получаем параметры из Snakemake
+    coverage_file = snakemake.input.coverage
+    output_file = snakemake.output.flag
     
     # Классифицируем образец
     sample_type = classify_sample(coverage_file)

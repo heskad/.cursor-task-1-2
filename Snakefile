@@ -81,8 +81,11 @@ rule coverage_analysis:
         reference_bed = config["reference_regions"]
     output:
         coverage = os.path.join(config['output_dir'], "coverage/{sample}_coverage.txt")
+    log:
+        os.path.join(config['output_dir'], "logs/{sample}_coverage.log")
     shell:
-        "bedtools coverage -a {input.reference_bed} -b {input.bam} > {output.coverage}"
+        """mkdir -p $(dirname {output.coverage})
+        bedtools coverage -a {input.reference_bed} -b {input.bam} > {output.coverage} 2>> {log}"""
 
 rule classify_sample:
     input:
