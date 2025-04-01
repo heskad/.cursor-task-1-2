@@ -162,7 +162,8 @@ rule analyze_metagenome:
 
 rule classify_sample:
     input:
-        coverage = rules.coverage_analysis.output.coverage
+        coverage = rules.coverage_analysis.output.coverage,
+        annotation = config["annotation"]
     output:
         flag = os.path.join(config['output_dir'], "reports/{sample}_type.txt")
     params:
