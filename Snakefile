@@ -101,13 +101,17 @@ rule analyze_sample:
     input:
         bam = rules.mark_duplicates.output.bam,
         metrics = rules.mark_duplicates.output.metrics,
-        type_flag = rules.classify_sample.output.flag
+        sample_type = rules.classify_sample.output.flag,
+        mito_stats = rules.analyze_mitochondrial.output.mito_stats,
+        exome_stats = rules.analyze_exome.output.exome_stats,
+        onco_stats = rules.analyze_onco_panel.output.onco_stats,
+        meta_stats = rules.analyze_metagenome.output.meta_stats
     output:
         report = os.path.join(config['output_dir'], "reports/{sample}_final_report.txt")
     log:
         os.path.join(config['output_dir'], "logs/{sample}_analyze.log")
     shell:
-        "python scripts/generate_report.py {input.bam} {input.metrics} {output.report} 2>> {log}"
+        "python scripts/generate_report.py {input.bam} {input.metrics} {output.report} {input.mito_stats} {input.exome_stats} {input.onco_stats} {input.meta_stats} 2>> {log}"
 
 rule analyze_mitochondrial:
     input:
