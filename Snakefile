@@ -57,13 +57,15 @@ rule process_bam:
         rules.bwa_alignment.output
     output:
         bam = os.path.join(config['output_dir'], "aligned/{sample}.sorted.bam"),
-        bai = os.path.join(config['output_dir'], "aligned/{sample}.sorted.bam.bai")
+        bai = os.path.join(config['output_dir'], "aligned/{sample}.sorted.bam.bai"),
+        stats = os.path.join(config['output_dir'], "metrics/{sample}_bam_stats.txt")
     threads: config['threads']
     log: os.path.join(config['output_dir'], "logs/{sample}_samtools.log")
     shell:
         """samtools view -@ {threads} -Sb {input} 2>> {log} | \
         samtools sort -@ {threads} -o {output.bam} 2>> {log}
-        samtools index {output.bam} 2>> {log}"""
+        samtools index {output.bam} 2>> {log}
+        samtools stats {output.bam} > {output.stats} 2>> {log}"""
 
 rule mark_duplicates:
     input:
