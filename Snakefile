@@ -22,7 +22,8 @@ if not SAMPLES:
 rule all:
     input:
         expand(os.path.join(config["output_dir"], "reports/{report_sample}_final_report.txt"), report_sample=SAMPLES),
-        expand(os.path.join(config["output_dir"], "metrics/{metric_sample}_quality_metrics.txt"), metric_sample=SAMPLES)
+        expand(os.path.join(config["output_dir"], "metrics/{metric_sample}_quality_metrics.txt"), metric_sample=SAMPLES),
+        expand(os.path.join(config["output_dir"], "metrics/raw_fastqc/{fastqc_sample}_read1_fastqc/fastqc_data.txt"), fastqc_sample=SAMPLES)
 
 rule fastqc_raw:
     input:
