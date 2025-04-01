@@ -199,3 +199,14 @@ rule collect_quality_metrics:
         quality_metrics = os.path.join(config['output_dir'], "metrics/{sample}_quality_metrics.txt")
     shell:
         "python scripts/collect_metrics.py {input.bam} {input.metrics} {input.mito_stats} {input.exome_stats} {input.onco_stats} {input.meta_stats} {output.quality_metrics}"
+
+rule collect_metrics:
+    input:
+        fastqc = rules.fastqc_raw.output.data,
+        bam_stats = rules.process_bam.output.stats
+    output:
+        metrics = os.path.join(config['output_dir'], "metrics/{sample}_metrics.json")
+    params:
+        output_file = os.path.join(config['output_dir'], "metrics/{sample}_metrics.json")
+    script:
+        "scripts/collect_metrics.py"

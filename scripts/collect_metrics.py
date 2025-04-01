@@ -5,6 +5,8 @@ import pysam
 from pathlib import Path
 import numpy as np
 from collections import Counter
+import json
+import pandas as pd
 
 def get_bam_stats(bam_file):
     """Получает базовые статистики из BAM файла."""
@@ -61,90 +63,109 @@ def read_coverage_stats(stats_path):
         print(f"WARNING: Failed to read coverage stats: {str(e)}", file=sys.stderr)
         return 0.0
 
-def main():
-    if len(sys.argv) != 8:
-        print("Usage: collect_metrics.py <bam_file> <metrics_file> <mito_stats> <exome_stats> <onco_stats> <meta_stats> <output_file>")
-        sys.exit(1)
-    
-    bam_file = sys.argv[1]
-    metrics_file = sys.argv[2]
-    mito_stats_path = sys.argv[3]
-    exome_stats_path = sys.argv[4]
-    onco_stats_path = sys.argv[5]
-    meta_stats_path = sys.argv[6]
-    output_file = sys.argv[7]
-    
-    # Проверка файлов
-    for path in [bam_file, metrics_file, mito_stats_path, exome_stats_path, onco_stats_path, meta_stats_path]:
-        if not Path(path).exists():
-            raise FileNotFoundError(f"File not found: {path}")
+def parse_fastqc_data(fastqc_data_file):
+    """
+    Парсит файл fastqc_data.txt и извлекает метрики.
+    """
+    metrics = {}
+    current_section = None
     
     try:
-        # 1. Базовые статистики BAM
-        bam_stats = get_bam_stats(bam_file)
-        
-        # 2. Статистики митохондриального генома
-        mito_stats = read_mito_stats(mito_stats_path)
-        
-        # 3. Статистики покрытия
-        exome_coverage = read_coverage_stats(exome_stats_path)
-        onco_coverage = read_coverage_stats(onco_stats_path)
-        meta_coverage = read_coverage_stats(meta_stats_path)
-        
-        # 4. Расчет дополнительных метрик
-        read_length_stats = {
-            'mean': np.mean(bam_stats['read_lengths']) if bam_stats['read_lengths'] else 0,
-            'median': np.median(bam_stats['read_lengths']) if bam_stats['read_lengths'] else 0,
-            'mode': Counter(bam_stats['read_lengths']).most_common(1)[0][0] if bam_stats['read_lengths'] else 0
-        }
-        
-        insert_size_stats = {
-            'mean': np.mean(bam_stats['insert_sizes']) if bam_stats['insert_sizes'] else 0,
-            'median': np.median(bam_stats['insert_sizes']) if bam_stats['insert_sizes'] else 0,
-            'mode': Counter(bam_stats['insert_sizes']).most_common(1)[0][0] if bam_stats['insert_sizes'] else 0
-        }
-        
-        # Записываем все метрики в файл
-        with open(output_file, 'w') as f:
-            # Базовые метрики
-            f.write("Basic Metrics:\n")
-            f.write(f"Total reads: {bam_stats['total_reads']:,}\n")
-            f.write(f"Mapped reads: {bam_stats['mapped_reads']:,} ({bam_stats['mapped_reads']/bam_stats['total_reads']*100:.2f}%)\n")
-            f.write(f"Unmapped reads: {bam_stats['unmapped_reads']:,} ({bam_stats['unmapped_reads']/bam_stats['total_reads']*100:.2f}%)\n")
-            f.write(f"Duplicate reads: {bam_stats['duplicate_reads']:,} ({bam_stats['duplicate_reads']/bam_stats['total_reads']*100:.2f}%)\n\n")
-            
-            # Статистики длины ридов
-            f.write("Read Length Statistics:\n")
-            f.write(f"Mean: {read_length_stats['mean']:.2f} bp\n")
-            f.write(f"Median: {read_length_stats['median']:.2f} bp\n")
-            f.write(f"Mode: {read_length_stats['mode']:.2f} bp\n\n")
-            
-            # Статистики размера вставки
-            f.write("Insert Size Statistics:\n")
-            f.write(f"Mean: {insert_size_stats['mean']:.2f} bp\n")
-            f.write(f"Median: {insert_size_stats['median']:.2f} bp\n")
-            f.write(f"Mode: {insert_size_stats['mode']:.2f} bp\n\n")
-            
-            # Митохондриальный геном
-            f.write("Mitochondrial Genome:\n")
-            f.write(f"Mapped reads: {mito_stats.get('mapped_reads', 0):,}\n")
-            f.write(f"Bases mapped: {mito_stats.get('bases_mapped', 0):,}\n")
-            f.write(f"Average length: {mito_stats.get('avg_length', 0):.2f} bp\n\n")
-            
-            # Покрытие
-            f.write("Coverage Statistics:\n")
-            f.write(f"Exome coverage: {exome_coverage:.2f}x\n")
-            f.write(f"Onco panel coverage: {onco_coverage:.2f}x\n")
-            f.write(f"Metagenome coverage: {meta_coverage:.2f}x\n")
-            
-            # Picard метрики
-            f.write("\nPicard MarkDuplicates Metrics:\n")
-            with open(metrics_file) as mf:
-                f.write(mf.read())
+        with open(fastqc_data_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                if line.startswith('>>'):
+                    if line.startswith('>>END_MODULE'):
+                        current_section = None
+                    else:
+                        current_section = line[2:].split('\t')[0]
+                        continue
                 
+                if current_section == 'Basic Statistics':
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        key = key.strip()
+                        value = value.strip()
+                        
+                        # Преобразуем числовые значения
+                        if value.replace('.', '').replace(',', '').isdigit():
+                            value = float(value.replace(',', ''))
+                        elif value.endswith('%'):
+                            value = float(value.rstrip('%')) / 100
+                        elif value.endswith(' bp'):
+                            value = int(value.split()[0])
+                        
+                        metrics[key] = value
+                        
     except Exception as e:
-        print(f"ERROR: {str(e)}", file=sys.stderr)
+        print(f"Warning: Failed to parse FastQC data: {str(e)}", file=sys.stderr)
+    
+    return metrics
+
+def parse_bam_stats(bam_stats_file):
+    """
+    Парсит файл статистики BAM и извлекает метрики.
+    """
+    metrics = {}
+    try:
+        with open(bam_stats_file, 'r') as f:
+            for line in f:
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    
+                    # Преобразуем числовые значения
+                    if value.replace('.', '').replace(',', '').isdigit():
+                        value = float(value.replace(',', ''))
+                    elif value.endswith('%'):
+                        value = float(value.rstrip('%')) / 100
+                    
+                    metrics[key] = value
+                    
+    except Exception as e:
+        print(f"Warning: Failed to parse BAM stats: {str(e)}", file=sys.stderr)
+    
+    return metrics
+
+def collect_metrics(fastqc_data_file, bam_stats_file, output_file):
+    """
+    Собирает метрики из FastQC и BAM статистики.
+    """
+    try:
+        # Парсим метрики из FastQC
+        fastqc_metrics = parse_fastqc_data(fastqc_data_file)
+        
+        # Парсим метрики из BAM статистики
+        bam_metrics = parse_bam_stats(bam_stats_file)
+        
+        # Объединяем метрики
+        metrics = {
+            'fastqc': fastqc_metrics,
+            'bam': bam_metrics
+        }
+        
+        # Сохраняем метрики в JSON
+        with open(output_file, 'w') as f:
+            json.dump(metrics, f, indent=2)
+            
+    except Exception as e:
+        print(f"Error collecting metrics: {str(e)}", file=sys.stderr)
         sys.exit(1)
+
+def main():
+    if len(sys.argv) != 4:
+        print("Usage: collect_metrics.py <fastqc_data_file> <bam_stats_file> <output_file>")
+        sys.exit(1)
+    
+    fastqc_data_file = sys.argv[1]
+    bam_stats_file = sys.argv[2]
+    output_file = sys.argv[3]
+    
+    collect_metrics(fastqc_data_file, bam_stats_file, output_file)
 
 if __name__ == "__main__":
     main() 
