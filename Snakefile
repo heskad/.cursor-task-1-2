@@ -21,9 +21,9 @@ if not SAMPLES:
 
 rule all:
     input:
+        expand(os.path.join(config["output_dir"], "metrics/raw_fastqc/{fastqc_sample}_read1_fastqc/fastqc_data.txt"), fastqc_sample=SAMPLES),
         expand(os.path.join(config["output_dir"], "reports/{report_sample}_final_report.txt"), report_sample=SAMPLES),
-        expand(os.path.join(config["output_dir"], "metrics/{metric_sample}_quality_metrics.txt"), metric_sample=SAMPLES),
-        expand(os.path.join(config["output_dir"], "metrics/raw_fastqc/{fastqc_sample}_read1_fastqc/fastqc_data.txt"), fastqc_sample=SAMPLES)
+        expand(os.path.join(config["output_dir"], "metrics/{metric_sample}_quality_metrics.txt"), metric_sample=SAMPLES)
 
 rule fastqc_raw:
     input:
@@ -37,16 +37,48 @@ rule fastqc_raw:
         os.path.join(config['output_dir'], "logs/{sample}_fastqc.log")
     shell:
         """set -euo pipefail
+        
+        # Создаем директории
         mkdir -p {config[output_dir]}/metrics/raw_fastqc
+        
+        # Запускаем FastQC
+        echo "Starting FastQC analysis for {wildcards.sample}" > {log}
         fastqc {input.r1} {input.r2} \
             -o {config[output_dir]}/metrics/raw_fastqc \
             --quiet \
-            2>> {log} || exit 1"""
+            2>> {log} || exit 1
+            
+        # Ждем создания zip-файла
+        echo "Waiting for FastQC zip file..." >> {log}
+        zip_file="{config[output_dir]}/metrics/raw_fastqc/{wildcards.sample}_read1_fastqc.zip"
+        while [ ! -f "$zip_file" ]; do
+            sleep 1
+            echo "Waiting for $zip_file..." >> {log}
+        done
+        
+        # Распаковываем результаты
+        echo "Extracting FastQC results..." >> {log}
+        unzip -o "$zip_file" -d "{config[output_dir]}/metrics/raw_fastqc/" 2>> {log}
+        
+        # Проверяем создание файлов
+        echo "Checking output files..." >> {log}
+        if [ ! -f {output.data} ]; then
+            echo "Error: FastQC data file not created" >> {log}
+            exit 1
+        fi
+        
+        if [ ! -f {output.html} ]; then
+            echo "Error: FastQC HTML file not created" >> {log}
+            exit 1
+        fi
+        
+        echo "FastQC analysis completed successfully" >> {log}"""
 
 rule bwa_alignment:
     input:
         r1 = rules.fastqc_raw.input.r1,
-        r2 = rules.fastqc_raw.input.r2
+        r2 = rules.fastqc_raw.input.r2,
+        fastqc = rules.fastqc_raw.output.data
     output:
         temp(os.path.join(config['output_dir'], "aligned/{sample}.sam"))
     threads: config['threads']
