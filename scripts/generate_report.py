@@ -6,6 +6,75 @@ from pathlib import Path
 import zipfile
 import numpy as np
 import yaml
+from collections import Counter
+
+def parse_fastqc_data(fastqc_zip):
+    """Парсит данные из FastQC zip-архива."""
+    data = {}
+    try:
+        with zipfile.ZipFile(fastqc_zip) as zf:
+            for name in zf.namelist():
+                if name.endswith('fastqc_data.txt'):
+                    with zf.open(name) as f:
+                        for line in f:
+                            line = line.decode('utf-8').strip()
+                            if line.startswith('Sequence length'):
+                                data['sequence_length'] = int(line.split('\t')[1])
+                            elif line.startswith('Adapter Content'):
+                                data['adapter_percent'] = float(line.split('\t')[1])
+                            elif line.startswith('Overrepresented sequences'):
+                                data['overlapping_percent'] = float(line.split('\t')[1])
+    except Exception as e:
+        print(f"WARNING: Failed to parse FastQC data: {str(e)}", file=sys.stderr)
+    return data
+
+def get_mapping_stats(bam_path):
+    """Получает статистики выравнивания из BAM файла."""
+    try:
+        bam = pysam.AlignmentFile(bam_path)
+        total_reads = bam.count()
+        mapped_reads = 0
+        non_unique = 0
+        
+        for read in bam:
+            if read.is_mapped:
+                mapped_reads += 1
+                if read.get_tag('NH', 1) > 1:
+                    non_unique += 1
+        
+        return total_reads, mapped_reads, non_unique
+    except Exception as e:
+        print(f"WARNING: Failed to get mapping stats: {str(e)}", file=sys.stderr)
+        return 0, 0, 0
+
+def get_insert_size_stats(bam_path):
+    """Получает статистики размера вставки из BAM файла."""
+    try:
+        bam = pysam.AlignmentFile(bam_path)
+        insert_sizes = []
+        
+        for read in bam:
+            if read.is_paired and read.template_length:
+                insert_sizes.append(abs(read.template_length))
+        
+        if insert_sizes:
+            return np.mean(insert_sizes), np.median(insert_sizes), Counter(insert_sizes).most_common(1)[0][0]
+        return 0, 0, 0
+    except Exception as e:
+        print(f"WARNING: Failed to get insert size stats: {str(e)}", file=sys.stderr)
+        return 0, 0, 0
+
+def parse_picard_metrics(metrics_path):
+    """Парсит метрики дубликатов из файла Picard."""
+    try:
+        with open(metrics_path) as f:
+            for line in f:
+                if line.startswith('PERCENT_DUPLICATION'):
+                    return float(line.split('\t')[1])
+        return 0.0
+    except Exception as e:
+        print(f"WARNING: Failed to parse Picard metrics: {str(e)}", file=sys.stderr)
+        return 0.0
 
 def read_mito_stats(mito_stats_path):
     """Читает статистики митохондриального генома."""
@@ -94,7 +163,7 @@ def main():
             report.write(f"Duplicate rate: {dup_percent:.2f}%\n")
             report.write(f"Non-unique alignments: {non_unique:,} ({non_unique/total_reads*100:.2f}%)\n")
             report.write(f"Overlapping reads (est.): {fastqc_data.get('overlapping_percent', 0.0):.2f}%\n")
-            report.write(f"Insert size - Mean: {mean_insert}, Median: {median_insert}, Mode: {mode_insert}\n\n")
+            report.write(f"Insert size - Mean: {mean_insert:.2f}, Median: {median_insert:.2f}, Mode: {mode_insert:.2f}\n\n")
             
             # Митохондриальный геном
             report.write("Mitochondrial Genome:\n")
@@ -103,34 +172,13 @@ def main():
             report.write(f"Bases mapped: {mito_stats.get('bases_mapped', 0):,}\n")
             report.write(f"Average length: {mito_stats.get('avg_length', 0):.2f} bp\n\n")
             
-            # Экзомная панель
-            report.write("Exome Panel:\n")
+            # Покрытие
+            report.write("Coverage Statistics:\n")
             report.write("-" * 20 + "\n")
-            report.write(f"Average coverage: {exome_coverage:.2f}x\n\n")
+            report.write(f"Exome coverage: {exome_coverage:.2f}x\n")
+            report.write(f"Onco panel coverage: {onco_coverage:.2f}x\n")
+            report.write(f"Metagenome coverage: {meta_coverage:.2f}x\n")
             
-            # Онко-панель
-            report.write("Oncology Panel:\n")
-            report.write("-" * 20 + "\n")
-            report.write(f"Average coverage: {onco_coverage:.2f}x\n\n")
-            
-            # Метагеном
-            report.write("Metagenome:\n")
-            report.write("-" * 20 + "\n")
-            report.write(f"Average coverage: {meta_coverage:.2f}x\n\n")
-            
-            # Picard метрики
-            report.write("Picard MarkDuplicates Metrics:\n")
-            report.write("-" * 20 + "\n")
-            with open(metrics_path) as f:
-                report.write(f.read())
-        
-        # Добавляем тип исследования
-        type_file = Path(bam_path).parent.parent / "reports" / f"{sample_name}_type.txt"
-        if type_file.exists():
-            with open(output_path, 'a') as report:
-                research_type = type_file.read_text().strip()
-                report.write(f"\nResearch Type: {research_type}\n")
-
     except Exception as e:
         print(f"ERROR: {str(e)}", file=sys.stderr)
         sys.exit(1)
