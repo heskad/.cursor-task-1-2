@@ -66,14 +66,18 @@ rule mark_duplicates:
     output:
         bam = os.path.join(config['output_dir'], "aligned/{sample}.dedup.bam"),
         metrics = os.path.join(config['output_dir'], "metrics/{sample}.dups_metrics.txt")
+    log:
+        os.path.join(config['output_dir'], "logs/{sample}_mark_duplicates.log")
     threads: config['threads']
     shell:
-        """java -jar {config[picard_jar]} MarkDuplicates \
+        """mkdir -p $(dirname {output.bam}) $(dirname {output.metrics})
+        java -jar {config[picard_jar]} MarkDuplicates \
         INPUT={input} \
         OUTPUT={output.bam} \
         METRICS_FILE={output.metrics} \
         CREATE_INDEX=true \
-        VALIDATION_STRINGENCY=LENIENT"""
+        VALIDATION_STRINGENCY=LENIENT \
+        2>> {log}"""
 
 rule coverage_analysis:
     input:
