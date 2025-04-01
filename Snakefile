@@ -29,10 +29,14 @@ rule fastqc_raw:
         r1 = os.path.join(config['input_dir'], "{sample}/{sample}_read1.fastq.gz"),
         r2 = os.path.join(config['input_dir'], "{sample}/{sample}_read2.fastq.gz")
     output:
-        directory(os.path.join(config['output_dir'], "metrics/raw_fastqc/{sample}"))
+        data = os.path.join(config['output_dir'], "metrics/raw_fastqc/{sample}_read1_fastqc/fastqc_data.txt"),
+        html = os.path.join(config['output_dir'], "metrics/raw_fastqc/{sample}_read1_fastqc.html")
     threads: config['threads']
+    log:
+        os.path.join(config['output_dir'], "logs/{sample}_fastqc.log")
     shell:
-        "fastqc {input.r1} {input.r2} -o {output} --quiet"
+        """mkdir -p {config[output_dir]}/metrics/raw_fastqc
+        fastqc {input.r1} {input.r2} -o {config[output_dir]}/metrics/raw_fastqc --quiet 2>> {log}"""
 
 rule bwa_alignment:
     input:
