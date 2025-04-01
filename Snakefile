@@ -13,7 +13,8 @@ for param in required_params:
 # Автоматическое определение образцов
 SAMPLES = [f for f in os.listdir(config["input_dir"]) 
           if os.path.isdir(os.path.join(config["input_dir"], f)) and 
-          os.path.exists(os.path.join(config["input_dir"], f, f"{f}_read1.fastq.gz"))]
+          os.path.exists(os.path.join(config["input_dir"], f, f"{f}_read1.fastq.gz")) and
+          f != "ZHA261221"]  # Исключаем метагеномный образец
 
 if not SAMPLES:
     raise ValueError("No samples found in input directory!")
@@ -70,14 +71,43 @@ rule mark_duplicates:
         os.path.join(config['output_dir'], "logs/{sample}_mark_duplicates.log")
     threads: config['threads']
     shell:
-        """mkdir -p $(dirname {output.bam}) $(dirname {output.metrics})
+        """set -e
+        echo "Starting mark_duplicates for {wildcards.sample}" > {log}
+        echo "Input file: {input}" >> {log}
+        echo "Output files: {output.bam}, {output.metrics}" >> {log}
+        
+        # Проверяем входной файл
+        if [ ! -f {input} ]; then
+            echo "Error: Input file {input} does not exist" >> {log}
+            exit 1
+        fi
+        
+        # Создаем директории
+        mkdir -p $(dirname {output.bam}) $(dirname {output.metrics})
+        
+        # Проверяем права доступа
+        if [ ! -w $(dirname {output.bam}) ]; then
+            echo "Error: No write permission in output directory" >> {log}
+            exit 1
+        fi
+        
+        # Запускаем Picard
+        echo "Running Picard MarkDuplicates..." >> {log}
         java -jar {config[picard_jar]} MarkDuplicates \
         INPUT={input} \
         OUTPUT={output.bam} \
         METRICS_FILE={output.metrics} \
         CREATE_INDEX=true \
         VALIDATION_STRINGENCY=LENIENT \
-        2>> {log}"""
+        2>> {log}
+        
+        # Проверяем результат
+        if [ ! -f {output.bam} ]; then
+            echo "Error: Output BAM file was not created" >> {log}
+            exit 1
+        fi
+        
+        echo "MarkDuplicates completed successfully" >> {log}"""
 
 rule coverage_analysis:
     input:
