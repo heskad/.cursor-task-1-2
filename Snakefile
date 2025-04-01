@@ -89,6 +89,8 @@ rule classify_sample:
         coverage = rules.coverage_analysis.output.coverage
     output:
         flag = os.path.join(config['output_dir'], "reports/{sample}_type.txt")
+    params:
+        output_file = os.path.join(config['output_dir'], "reports/{sample}_type.txt")
     script:
         "scripts/classify_sample.py"
 
