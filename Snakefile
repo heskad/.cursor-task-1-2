@@ -87,32 +87,6 @@ rule coverage_analysis:
         """mkdir -p $(dirname {output.coverage})
         bedtools coverage -a {input.reference_bed} -b {input.bam} > {output.coverage} 2>> {log}"""
 
-rule classify_sample:
-    input:
-        coverage = rules.coverage_analysis.output.coverage
-    output:
-        flag = os.path.join(config['output_dir'], "reports/{sample}_type.txt")
-    params:
-        output_file = os.path.join(config['output_dir'], "reports/{sample}_type.txt")
-    script:
-        "scripts/classify_sample.py"
-
-rule analyze_sample:
-    input:
-        bam = rules.mark_duplicates.output.bam,
-        metrics = rules.mark_duplicates.output.metrics,
-        sample_type = rules.classify_sample.output.flag,
-        mito_stats = rules.analyze_mitochondrial.output.mito_stats,
-        exome_stats = rules.analyze_exome.output.exome_stats,
-        onco_stats = rules.analyze_onco_panel.output.onco_stats,
-        meta_stats = rules.analyze_metagenome.output.meta_stats
-    output:
-        report = os.path.join(config['output_dir'], "reports/{sample}_final_report.txt")
-    log:
-        os.path.join(config['output_dir'], "logs/{sample}_analyze.log")
-    shell:
-        "python scripts/generate_report.py {input.bam} {input.metrics} {output.report} {input.mito_stats} {input.exome_stats} {input.onco_stats} {input.meta_stats} 2>> {log}"
-
 rule analyze_mitochondrial:
     input:
         bam = rules.mark_duplicates.output.bam,
@@ -151,6 +125,32 @@ rule analyze_metagenome:
         meta_stats = os.path.join(config['output_dir'], "metrics/{sample}_meta_stats.txt")
     shell:
         """bedtools coverage -a {input.windows} -b {input.bam} > {output.meta_stats}"""
+
+rule classify_sample:
+    input:
+        coverage = rules.coverage_analysis.output.coverage
+    output:
+        flag = os.path.join(config['output_dir'], "reports/{sample}_type.txt")
+    params:
+        output_file = os.path.join(config['output_dir'], "reports/{sample}_type.txt")
+    script:
+        "scripts/classify_sample.py"
+
+rule analyze_sample:
+    input:
+        bam = rules.mark_duplicates.output.bam,
+        metrics = rules.mark_duplicates.output.metrics,
+        sample_type = rules.classify_sample.output.flag,
+        mito_stats = rules.analyze_mitochondrial.output.mito_stats,
+        exome_stats = rules.analyze_exome.output.exome_stats,
+        onco_stats = rules.analyze_onco_panel.output.onco_stats,
+        meta_stats = rules.analyze_metagenome.output.meta_stats
+    output:
+        report = os.path.join(config['output_dir'], "reports/{sample}_final_report.txt")
+    log:
+        os.path.join(config['output_dir'], "logs/{sample}_analyze.log")
+    shell:
+        "python scripts/generate_report.py {input.bam} {input.metrics} {output.report} {input.mito_stats} {input.exome_stats} {input.onco_stats} {input.meta_stats} 2>> {log}"
 
 rule collect_quality_metrics:
     input:
