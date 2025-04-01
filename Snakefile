@@ -35,8 +35,12 @@ rule fastqc_raw:
     log:
         os.path.join(config['output_dir'], "logs/{sample}_fastqc.log")
     shell:
-        """mkdir -p {config[output_dir]}/metrics/raw_fastqc
-        fastqc {input.r1} {input.r2} -o {config[output_dir]}/metrics/raw_fastqc --quiet 2>> {log}"""
+        """set -euo pipefail
+        mkdir -p {config[output_dir]}/metrics/raw_fastqc
+        fastqc {input.r1} {input.r2} \
+            -o {config[output_dir]}/metrics/raw_fastqc \
+            --quiet \
+            2>> {log} || exit 1"""
 
 rule bwa_alignment:
     input:
