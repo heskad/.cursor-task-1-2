@@ -87,13 +87,10 @@ def classify_sample(coverage_file, gff3_file):
         return "unknown"
 
 def main():
-    if len(sys.argv) != 4:
-        print("Usage: classify_sample.py <coverage_file> <gff3_file> <output_file>")
-        sys.exit(1)
-    
-    coverage_file = sys.argv[1]
-    gff3_file = sys.argv[2]
-    output_file = sys.argv[3]
+    # Получаем параметры из Snakemake
+    coverage_file = snakemake.input.coverage
+    gff3_file = snakemake.input.annotation
+    output_file = snakemake.output.flag
     
     # Классифицируем образец
     sample_type = classify_sample(coverage_file, gff3_file)
