@@ -9,7 +9,7 @@ import json
 import pandas as pd
 
 def get_bam_stats(bam_file):
-    """Получает базовые статистики из BAM файла."""
+    """базовые статистики из BAM файла."""
     stats = {
         'total_reads': 0,
         'mapped_reads': 0,
@@ -37,7 +37,7 @@ def get_bam_stats(bam_file):
     return stats
 
 def read_mito_stats(mito_stats_path):
-    """Читает статистики митохондриального генома."""
+    """статистики митохондриального генома."""
     stats = {}
     try:
         with open(mito_stats_path) as f:
@@ -53,7 +53,7 @@ def read_mito_stats(mito_stats_path):
     return stats
 
 def read_coverage_stats(stats_path):
-    """Читает статистики покрытия."""
+    """статистики покрытия."""
     try:
         with open(stats_path) as f:
             # Берем среднее покрытие из первой строки
