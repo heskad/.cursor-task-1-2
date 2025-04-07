@@ -7,10 +7,8 @@ import zipfile
 import numpy as np
 import yaml
 
-# ... existing code ...
-
 def read_mito_stats(mito_stats_path):
-    """Читает статистики митохондриального генома."""
+    """статистика митохондриального генома."""
     stats = {}
     try:
         with open(mito_stats_path) as f:
@@ -26,7 +24,7 @@ def read_mito_stats(mito_stats_path):
     return stats
 
 def read_coverage_stats(stats_path):
-    """Читает статистики покрытия."""
+    """статистика покрытия."""
     try:
         with open(stats_path) as f:
             # Берем среднее покрытие из первой строки
